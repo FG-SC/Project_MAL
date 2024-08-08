@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from scipy.sparse import csr_matrix
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from thefuzz import process
@@ -24,35 +23,20 @@ user_to_int_mapping, int_to_user_mapping = pd.factorize(ratings_df["user"])
 ratings_df['userID'] = user_to_int_mapping
 ratings_df['score'] = ratings_df['score'].astype(int)
 
-# Function to create a sparse matrix
-def create_X(df):
-    M = df['user'].nunique()
-    N = df['titleID'].nunique()
-    user_mapper = dict(zip(np.unique(df["userID"]), list(range(M))))
-    movie_mapper = dict(zip(np.unique(df["titleID"]), list(range(N))))
-    user_inv_mapper = dict(zip(list(range(M)), np.unique(df["userID"])))
-    movie_inv_mapper = dict(zip(list(range(N)), np.unique(df["titleID"])))
-    user_index = [user_mapper[i] for i in df['userID']]
-    item_index = [movie_mapper[i] for i in df['titleID']]
-    X = csr_matrix((df["score"], (user_index, item_index)), shape=(M, N))
-    return X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper
+# Function to create a pivot table
+def create_pivot_table(df):
+    pivot_table = df.pivot(index='userID', columns='titleID', values='score').fillna(0)
+    return pivot_table
 
-X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(ratings_df)
+pivot_table = create_pivot_table(ratings_df)
 
 # Function to find similar animes
-def find_similar_movies(movie_id, X, movie_mapper, movie_inv_mapper, k, p=2):
-    X = X.T
-    neighbour_ids = []
-    movie_ind = movie_mapper[movie_id]
-    movie_vec = X[movie_ind]
-    if isinstance(movie_vec, (np.ndarray)):
-        movie_vec = movie_vec.reshape(1, -1)
+def find_similar_movies(movie_id, pivot_table, k, p=2):
+    movie_vec = pivot_table[movie_id].values.reshape(1, -1)
     kNN = NearestNeighbors(n_neighbors=k+1, algorithm="brute", metric='euclidean', p=p)
-    kNN.fit(X)
+    kNN.fit(pivot_table.T)
     neighbour = kNN.kneighbors(movie_vec, return_distance=False)
-    for i in range(1, k+1):
-        n = neighbour.item(i)
-        neighbour_ids.append(movie_inv_mapper[n])
+    neighbour_ids = [pivot_table.columns[n] for n in neighbour[0][1:k+1]]
     return neighbour_ids
 
 # Function to find an anime
@@ -65,7 +49,7 @@ def anime_finder(title, limit=1):
 def get_content_based_recommendations(title_string, n_recommendations=10):
     title = anime_finder(title_string, limit=1)[0][0]
     movie_id = ratings_df.loc[ratings_df['title'] == title]['titleID'].unique()[0]
-    similar_movies = find_similar_movies(movie_id, X, movie_mapper, movie_inv_mapper, k=n_recommendations)
+    similar_movies = find_similar_movies(movie_id, pivot_table, k=n_recommendations)
     recommendations = [int_to_title_mapping[movie] for movie in similar_movies]
     return recommendations
 
