@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from thefuzz import process
 
