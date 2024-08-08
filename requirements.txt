@@ -3,4 +3,3 @@ pandas<=2.0.3
 scikit_learn<=1.4.2
 scipy<=1.11.4
 thefuzz==0.20.0
-python3-distutils
